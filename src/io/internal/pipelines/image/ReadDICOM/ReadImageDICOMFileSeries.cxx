@@ -314,13 +314,17 @@ int main (int argc, char * argv[])
   pipeline.remove_option(outputFilenamesOption);
 
   auto gdcmImageIO = itk::GDCMImageIO::New();
-
-  gdcmImageIO->SetFileName(inputFileNames[0]);
-  gdcmImageIO->ReadImageInformation();
-  const auto ioComponentType = gdcmImageIO->GetComponentType();
-  // Todo: work with the ioPixelType
-  // const auto ioPixelType = gdcmImageIO->GetPixelType();
-  const auto numberOfComponents = gdcmImageIO->GetNumberOfComponents();
+  auto ioComponentType = gdcmImageIO->GetComponentType();
+  auto numberOfComponents = gdcmImageIO->GetNumberOfComponents();
+  for(auto f : inputFileNames)
+  {
+    gdcmImageIO->SetFileName(f);
+    gdcmImageIO->ReadImageInformation();
+    ioComponentType = gdcmImageIO->GetComponentType();
+    // Todo: work with the ioPixelType
+    // const auto ioPixelType = gdcmImageIO->GetPixelType();
+    numberOfComponents = gdcmImageIO->GetNumberOfComponents();
+  }
   if (numberOfComponents > 1)
   {
     std::cerr << "Only one pixel component is currently supported. Image pixel components: " << numberOfComponents << std::endl;
