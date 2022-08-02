@@ -7,6 +7,7 @@ find_package(ITK REQUIRED
   COMPONENTS ITKCommon
     ITKGDCM
     ITKIOGDCM
+    ITKDCMTK
     ITKIOImageBase
     WebAssemblyInterface
   )
