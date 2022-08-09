@@ -7,7 +7,7 @@ LABEL org.opencontainers.image.source="https://github.com/InsightSoftwareConsort
 
 WORKDIR /
 
-# 2022-07-02 master branch
+# 2022-07-02 branch: emscripten-wasi-nifti-zlib-ng-2022-07-02
 ENV ITK_GIT_TAG 7e35b6443f7bec2aa74d439d066881971f5590db
 RUN git clone https://github.com/thewtex/ITK.git && \
   cd ITK && \
@@ -15,6 +15,14 @@ RUN git clone https://github.com/thewtex/ITK.git && \
   cd ../ && \
   sed -i -e '/^option(OPJ_USE_THREAD/c\option(OPJ_USE_THREAD "use threads" OFF)' \
     /ITK/Modules/ThirdParty/GDCM/src/gdcm/Utilities/gdcmopenjpeg/src/lib/openjp2/CMakeLists.txt
+
+# Modify CMake variable to use patched DCMTK library
+RUN sed -i -e '/^set(DCMTK_GIT_REPOSITORY/c\set(DCMTK_GIT_REPOSITORY "https://github.com/jadh4v/DCMTK.git")' \
+    /ITK/Modules/ThirdParty/DCMTK/DCMTKGitTag.cmake
+
+RUN sed -i -e '/^set(DCMTK_GIT_TAG/c\set(DCMTK_GIT_TAG "6f559e82ae9b91ab641f32132a4e746d6e033509")' \
+    /ITK/Modules/ThirdParty/DCMTK/DCMTKGitTag.cmake
+
 ARG CMAKE_BUILD_TYPE=Release
 
 ARG LDFLAGS
@@ -43,6 +51,7 @@ RUN mkdir ITK-build && \
     -DModule_IOMeshSWC:BOOL=ON \
     -DModule_IOScanco:BOOL=ON \
     -DModule_IOFDF:BOOL=ON \
+    -DModule_ITKIODCMTK:BOOL=ON \
     -DModule_ITKImageFunction:BOOL=ON \
     -DModule_SmoothingRecursiveYvvGaussianFilter:BOOL=ON \
     -DModule_MorphologicalContourInterpolation:BOOL=ON \
