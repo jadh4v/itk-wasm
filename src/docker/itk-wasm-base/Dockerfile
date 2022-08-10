@@ -20,8 +20,12 @@ RUN git clone https://github.com/thewtex/ITK.git && \
 RUN sed -i -e '/^set(DCMTK_GIT_REPOSITORY/c\set(DCMTK_GIT_REPOSITORY "https://github.com/jadh4v/DCMTK.git")' \
     /ITK/Modules/ThirdParty/DCMTK/DCMTKGitTag.cmake
 
-RUN sed -i -e '/^set(DCMTK_GIT_TAG/c\set(DCMTK_GIT_TAG "6f559e82ae9b91ab641f32132a4e746d6e033509")' \
+RUN sed -i -e '/^set(DCMTK_GIT_TAG/c\set(DCMTK_GIT_TAG "40a0b24b21da703aec345e22f221ede4dc864471")' \
     /ITK/Modules/ThirdParty/DCMTK/DCMTKGitTag.cmake
+
+# remove dcmjpeg from DCMTK libraries to compile (fix "missing <csetjmp> header" error)
+RUN sed -i -e 's/\<dcmjpeg\>//g' \
+    /ITK/Modules/ThirdParty/DCMTK/CMakeLists.txt
 
 ARG CMAKE_BUILD_TYPE=Release
 
@@ -51,7 +55,7 @@ RUN mkdir ITK-build && \
     -DModule_IOMeshSWC:BOOL=ON \
     -DModule_IOScanco:BOOL=ON \
     -DModule_IOFDF:BOOL=ON \
-    -DModule_ITKIODCMTK:BOOL=ON \
+    -DModule_ITKDCMTK:BOOL=ON \
     -DModule_ITKImageFunction:BOOL=ON \
     -DModule_SmoothingRecursiveYvvGaussianFilter:BOOL=ON \
     -DModule_MorphologicalContourInterpolation:BOOL=ON \
