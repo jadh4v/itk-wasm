@@ -7,9 +7,9 @@ LABEL org.opencontainers.image.source="https://github.com/InsightSoftwareConsort
 
 WORKDIR /
 
-# 2022-07-02 branch: emscripten-wasi-nifti-zlib-ng-2022-07-02
-ENV ITK_GIT_TAG 7e35b6443f7bec2aa74d439d066881971f5590db
-RUN git clone https://github.com/thewtex/ITK.git && \
+# 2022-07-02 branch: ITKWASM-2022-07-02-5e7aea9
+ENV ITK_GIT_TAG afd7a44bd42cb56edb8fcd67bd0f5ecaa2e0f3db
+RUN git clone https://github.com/jadh4v/ITK.git && \
   cd ITK && \
   git checkout ${ITK_GIT_TAG} && \
   cd ../ && \
@@ -20,7 +20,7 @@ RUN git clone https://github.com/thewtex/ITK.git && \
 RUN sed -i -e '/^set(DCMTK_GIT_REPOSITORY/c\set(DCMTK_GIT_REPOSITORY "https://github.com/jadh4v/DCMTK.git")' \
     /ITK/Modules/ThirdParty/DCMTK/DCMTKGitTag.cmake
 
-RUN sed -i -e '/^set(DCMTK_GIT_TAG/c\set(DCMTK_GIT_TAG "40a0b24b21da703aec345e22f221ede4dc864471")' \
+RUN sed -i -e '/^set(DCMTK_GIT_TAG/c\set(DCMTK_GIT_TAG "5b4a10e841f4eb44546d3a1589e5dba271123077")' \
     /ITK/Modules/ThirdParty/DCMTK/DCMTKGitTag.cmake
 
 # remove dcmjpeg from DCMTK libraries to compile (fix "missing <csetjmp> header" error)
@@ -65,6 +65,9 @@ RUN mkdir ITK-build && \
     -DModule_GenericLabelInterpolator:BOOL=ON \
     -DDO_NOT_BUILD_ITK_TEST_DRIVER:BOOL=ON \
     -DOPJ_USE_THREAD:BOOL=OFF \
+    -DDCMTK_WITH_THREADS:BOOL=OFF \
+    -DDCMTK_BUILD_APPS:BOOL=ON \
+    -DNO_FLOAT_EXCEPTIONS:BOOL=ON \
     ../ITK && \
   ninja && \
   find . -name '*.o' -delete && \
