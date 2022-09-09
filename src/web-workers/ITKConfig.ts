@@ -4,6 +4,7 @@ interface ITKConfig {
   pipelinesUrl: string
   imageIOUrl: string
   meshIOUrl: string
+  dicomUrl: string
 }
 
 export default ITKConfig

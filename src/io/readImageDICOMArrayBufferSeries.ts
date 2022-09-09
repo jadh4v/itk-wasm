@@ -21,15 +21,18 @@ const workerFunction = async (
   )
   worker = usedWorker
 
-  const args = ['--memory-io', '--output-image', '0', '--output-filenames', '1', '--input-images']
+  // const args = ['--memory-io', '--output-image', '0', '--output-filenames', '1', '--input-images']
+  const args = ['--memory-io', '--output-text', '0', '--output-filenames', '1', '--dicom-file']
   fileDescriptions.forEach((desc) => {
     args.push(`./${desc.path}`)
   })
+  /*
   if (singleSortedSeries) {
     args.push('--single-sorted-series')
   }
+  */
   const outputs = [
-    { type: InterfaceTypes.Image },
+//    { type: InterfaceTypes.Image },
     { type: InterfaceTypes.TextStream }
   ]
   const inputs = fileDescriptions.map((fd) => {
@@ -45,11 +48,13 @@ const workerFunction = async (
     outputs: any[]
   }
   const message = {
+    // operation: 'structuredReportToText',
     operation: 'readDICOMImageSeries',
     config: config,
     fileDescriptions: fileDescriptions,
     singleSortedSeries,
-    pipelinePath: 'ReadDICOMImageFileSeries', // placeholder
+    // pipelinePath: 'structured-report-to-text', // placeholder
+    pipelinePath: 'read-image-dicom-file-series', // placeholder
     args,
     outputs,
     inputs

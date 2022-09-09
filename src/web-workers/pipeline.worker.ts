@@ -27,8 +27,11 @@ registerWebworker(async function (input: RunPipelineInput | IOInput) {
     pipelineModule = await loadPipelineModule('read-image-dicom-file-series', input.config.imageIOUrl)
   } else if (input.operation === 'readDICOMTags') {
     pipelineModule = await loadPipelineModule('read-dicom-tags', input.config.imageIOUrl)
+  } else if (input.operation === 'structuredReportToText') {
+    pipelineModule = await loadPipelineModule('structured-report-to-text', input.config.dicomUrl)
   } else {
     throw new Error('Unknown worker operation')
   }
+  console.log("running pipelineModule: ", pipelineModule)
   return runPipeline(pipelineModule, input.args, input.outputs, input.inputs)
 })
