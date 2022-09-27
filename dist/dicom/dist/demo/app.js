@@ -1,4 +1,6 @@
 import { structuredReportToText } from '../itk-dicom.js'
+import { structuredReportToHtml } from '../itk-dicom.js'
+import { readDicomEncapsulatedPdf } from '../itk-dicom.js'
 
 
 // promise-file-reader
@@ -70,16 +72,28 @@ async function processData(context, event) {
   }
   const outputTextArea = document.getElementById('outputTextArea')
   outputTextArea.innerText = "Processing..."
-  const { webWorker, outputText } = await structuredReportToText(appWebWorker, context.dicomData.slice(), context.options)
+  // const { webWorker, outputText } = await structuredReportToHtml(appWebWorker, context.dicomData.slice(), context.options)
+  const { webWorker, pdfBinaryOutput } = await readDicomEncapsulatedPdf(appWebWorker, context.dicomData.slice())
   appWebWorker = webWorker
-  return outputText
+  // return outputText
+  return pdfBinaryOutput
 }
 
 
 function renderResults(context) {
-  const outputTextArea = document.getElementById('outputTextArea')
+  // const outputTextArea = document.getElementById('outputTextArea')
+  // const outputTextArea = document.getElementById('outputDiv')
+  const outputTextArea = document.getElementById('outputPDFSection')
   if (context.processResult) {
-    outputTextArea.innerText = context.processResult
+    // context.myFile = {}
+    // outputTextArea.innerText = context.processResult
+    // outputTextArea.innerHTML = context.processResult
+    // context.myFile = new File(context.processResult, "/my-file.pdf", {type: "application/pdf"})
+    // const stringifiedPdf = context.processResult.toString('base64')
+    // const str = Buffer.from(context.processResult).toString('base64')
+    const str = btoa(String.fromCharCode(...context.processResult))
+    outputTextArea.src = 'data:application/pdf;base64,' + str + '#toolbar=0'
+    console.log(outputTextArea.src)
   }
 }
 
