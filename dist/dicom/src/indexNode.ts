@@ -1,5 +1,15 @@
 
 
+import ApplyPstateToImageNodeResult from './ApplyPstateToImageNodeResult.js'
+export type { ApplyPstateToImageNodeResult }
+
+import ApplyPstateToImageOptions from './ApplyPstateToImageOptions.js'
+export type { ApplyPstateToImageOptions }
+
+import applyPstateToImageNode from './applyPstateToImageNode.js'
+export { applyPstateToImageNode }
+
+
 import ReadDicomEncapsulatedPdfNodeResult from './ReadDicomEncapsulatedPdfNodeResult.js'
 export type { ReadDicomEncapsulatedPdfNodeResult }
 
