@@ -3,6 +3,8 @@ import test from 'ava'
 import { structuredReportToTextNode } from '../dist/itk-dicom.node.js'
 import { structuredReportToHtmlNode } from '../dist/itk-dicom.node.js'
 import { readDicomEncapsulatedPdfNode } from '../dist/itk-dicom.node.js'
+import { applyPstateToImageNode } from '../dist/itk-dicom.node.js'
+import { apply } from 'async'
 
 test('structuredReportToText', async t => {
 
@@ -102,4 +104,28 @@ test('read Key Object Selection SR', async t => {
   t.assert(outputWithCSSFile.includes('</style>'))
   t.assert(!outputWithCSSFile.includes('http://my-custom-dicom-server/dicom.cgi'))
   t.assert(outputWithCSSFile.includes('http://localhost/dicom.cgi'))
+})
+
+test('Apply presentation state to dicom image.', async t => {
+
+  // Read the input image file
+  const inputFile = 'QIBA_CT_1C_CT_edited.dcm'
+  const inputFilePath = `../../build-emscripten/ExternalData/test/Input/${inputFile}`
+  const dicomFileBuffer = fs.readFileSync(inputFilePath)
+  const inputImage = new Uint8Array(dicomFileBuffer)
+
+  // Read the presentation state file (that references the above image internally using its SOPInstanceUID).
+  const pstateFile = 'QIBA_CT_1C_CT_edited.dcm.pre'
+  const pstateFilePath = `../../build-emscripten/ExternalData/test/Input/${pstateFile}`
+  const pstateFileBuffer = fs.readFileSync(pstateFilePath)
+  const inputPState = new Uint8Array(pstateFileBuffer)
+
+  const { pstateOutStream, bitmapOutStream } = await applyPstateToImageNode(inputImage, {pstateFile: inputPState})
+  console.log("pstateOutStream: ", pstateOutStream)
+  console.log("bitmapOutStream: ", bitmapOutStream)
+
+  t.assert(pstateOutStream != null)
+  t.assert(bitmapOutStream != null)
+
+  fs.writeFileSync('../../build-emscripten/ExternalData/test/pstateOutput.pgm', bitmapOutStream)
 })
