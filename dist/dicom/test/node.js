@@ -3,6 +3,8 @@ import test from 'ava'
 import { structuredReportToTextNode } from '../dist/itk-dicom.node.js'
 import { structuredReportToHtmlNode } from '../dist/itk-dicom.node.js'
 import { readDicomEncapsulatedPdfNode } from '../dist/itk-dicom.node.js'
+import { applyPstateToImageNode } from '../dist/itk-dicom.node.js'
+import { apply } from 'async'
 
 test('structuredReportToText', async t => {
 
@@ -102,4 +104,39 @@ test('read Key Object Selection SR', async t => {
   t.assert(outputWithCSSFile.includes('</style>'))
   t.assert(!outputWithCSSFile.includes('http://my-custom-dicom-server/dicom.cgi'))
   t.assert(outputWithCSSFile.includes('http://localhost/dicom.cgi'))
+})
+
+test('Apply presentation state to dicom image.', async t => {
+
+  // Read the input image file
+  const inputFile = 'gsps-pstate-test-input-image.dcm'
+  const inputFilePath = `../../build-emscripten/ExternalData/test/Input/${inputFile}`
+  const dicomFileBuffer = fs.readFileSync(inputFilePath)
+  const inputImage = new Uint8Array(dicomFileBuffer)
+
+  // Read the presentation state file (that references the above image internally using its SOPInstanceUID).
+  const pstateFile = 'gsps-pstate-test-input-pstate2.dcm'
+  const pstateFilePath = `../../build-emscripten/ExternalData/test/Input/${pstateFile}`
+  const pstateFileBuffer = fs.readFileSync(pstateFilePath)
+  const inputPState = new Uint8Array(pstateFileBuffer)
+
+  const { pstateOutStream, bitmapOutStream } = await applyPstateToImageNode(inputImage, {pstateFile: inputPState})
+
+  t.assert(pstateOutStream != null)
+  t.assert(bitmapOutStream != null)
+
+  const baselineJson = 'gsps-pstate2-baseline.json'
+  const baselineJsonFilePath = `../../build-emscripten/ExternalData/test/Input/${baselineJson}`
+  const baselineJsonFileBuffer = fs.readFileSync(baselineJsonFilePath)
+  // the slice operation removes the last EOF char from the baseline file.
+  const baselineJsonString = baselineJsonFileBuffer.toString().slice(0, -1)
+  t.assert(baselineJsonString === pstateOutStream)
+  t.assert(baselineJsonString.length === pstateOutStream.length)
+
+  const baselineImage = 'gsps-pstate2-image-baseline.pgm'
+  const baselineImageFilePath = `../../build-emscripten/ExternalData/test/Input/${baselineImage}`
+  const baselineImageFileBuffer = fs.readFileSync(baselineImageFilePath)
+  t.assert(baselineImageFileBuffer.length === bitmapOutStream.length)
+  t.assert(Buffer.compare(baselineImageFileBuffer, bitmapOutStream) === 0)
+
 })
