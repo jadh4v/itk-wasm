@@ -61,7 +61,10 @@
 #include "dcmtk/ofstd/ofcmdln.h"
 #include "dcmtk/ofstd/ofconapp.h"
 #include "dcmtk/dcmdata/dcuid.h"      /* for dcmtk version name */
+#include "dcmtk/dcmdata/dcjson.h"     /* JSON format */
 
+#include "cpp-base64/base64.h"
+#include "nlohmann/json.hpp"
 #include <cstring>
 
 #ifdef WITH_ZLIB
@@ -75,280 +78,332 @@ static OFLogger dcmp2pgmLogger = OFLog::getLogger("dcmtk.apps." OFFIS_CONSOLE_AP
 static char rcsid[] = "$dcmtk: " OFFIS_CONSOLE_APPLICATION " v"
   OFFIS_DCMTK_VERSION " " OFFIS_DCMTK_RELEASEDATE " $";
 
+template<typename T>
+void PrintJSONProperty(STD_NAMESPACE ostream &out, DcmJsonFormat& format, const char* propName, const T propValue)
+{
+  out << format.indent() << "\"" << propName << "\": " << propValue << "," << format.newline();
+}
+template<typename T>
+void PrintJSONProperty(STD_NAMESPACE ostream &out, DcmJsonFormat& format, const char* propName, const std::vector<T>& values)
+{
+  out << format.indent() << "\"" << propName << "\": [";
+  for(size_t i=0; i < values.size(); ++i)
+  {
+    if((i+1) < values.size())
+      out << values[i] << ", ";
+    else
+      out << values[i] << "]," << format.newline();
+  }
+}
+template <>
+void PrintJSONProperty<const char*>(STD_NAMESPACE ostream &out, DcmJsonFormat& format, const char* propName, const char* propValue)
+{
+  const std::string quote = "\"";
+  const std::string value = propValue ? std::string(quote + propValue + quote) : "null";
+  out << format.indent() << "\"" << propName << "\": " << value.c_str() << "," << format.newline();
+}
+template<>
+void PrintJSONProperty<bool>(STD_NAMESPACE ostream &out, DcmJsonFormat& format, const char* propName, const bool propValue)
+{
+  out << format.indent() << "\"" << propName << "\": " << (propValue ? "true" : "false") << "," << format.newline();
+}
+
+#define JSON_OUT1(property) \
+  PrintJSONProperty(out, format, #property, ps.get##property())
+
+#define JSON_OUT2(property, value) \
+  PrintJSONProperty(out, format, property, (value))
+
+#define JSON_OPEN() \
+  out << format.indent() << "{" << format.newline(); \
+  format.increaseIndention()
+
+#define JSON_OPEN_OBJ(obj) \
+  out << format.indent() << "\"" << (obj) << "\": {" << format.newline(); \
+  format.increaseIndention()
+
+#define JSON_CLOSE() \
+  format.decreaseIndention(); \
+  out << format.indent() << "}," << format.newline()
+
+#define JSON_OPEN_ARRAY(obj) \
+  out << format.indent() << "\"" << (obj) << "\": [" << format.newline(); \
+  format.increaseIndention()
+
+#define JSON_CLOSE_ARRAY() \
+  format.decreaseIndention(); \
+  out << format.indent() << "]," << format.newline()
 
 static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationState &ps)
 {
+  DcmJsonFormatPretty format(true); // formatted output, use DcmJsonFormatCompact for compact output.
+  format.setJsonExtensionEnabled(true);
+  OFBool meta = format.printMetaheaderInformation;
+  OFCondition status = EC_Normal;
+
+  // START JSON structure
+  JSON_OPEN();
+
   size_t i, j, max;
-  const char *c;
+  const char *c = nullptr;
 
   OFOStringStream oss;
 
-  oss << "DUMPING PRESENTATION STATE" << OFendl
-       << "--------------------------" << OFendl << OFendl;
+  JSON_OUT1(PresentationLabel);
+  JSON_OUT1(PresentationDescription);
+  JSON_OUT1(PresentationCreatorsName);
 
-  c = ps.getPresentationLabel();
-  oss << "Presentation Label: "; if (c) oss << c << OFendl; else oss << "none" << OFendl;
-  c = ps.getPresentationDescription();
-  oss << "Presentation Description: "; if (c) oss << c << OFendl; else oss << "none" << OFendl;
-  c = ps.getPresentationCreatorsName();
-  oss << "Presentation Creator's Name: "; if (c) oss << c << OFendl; else oss << "none" << OFendl;
-
-  oss << "VOI transformation: ";
   if (ps.haveActiveVOIWindow())
   {
     double width=0.0, center=0.0;
     ps.getCurrentWindowWidth(width);
     ps.getCurrentWindowCenter(center);
-    oss << "window center=" << center << " width=" << width << " description=\"";
-    c = ps.getCurrentVOIDescription();
-    if (c) oss << c << "\"" << OFendl; else oss << "(none)\"" << OFendl;
+    JSON_OUT2("CurrentWindowCenter", center);
+    JSON_OUT2("CurrentWindowWidth", width);
+    JSON_OUT1(CurrentVOIDescription);
   }
   else if (ps.haveActiveVOILUT())
   {
-    oss << "lut description=\"";
-    c = ps.getCurrentVOIDescription();
-    if (c) oss << c << "\"" << OFendl; else oss << "(none)\"" << OFendl;
+    JSON_OUT1(CurrentVOIDescription);
   }
-  else oss << "none" << OFendl;
 
-  oss << "Rotation: ";
-  switch (ps.getRotation())
-  {
-    case DVPSR_0_deg:
-      oss << "none";
-      break;
-    case DVPSR_90_deg:
-      oss << "90 degrees";
-      break;
-    case DVPSR_180_deg:
-      oss << "180 degrees";
-      break;
-    case DVPSR_270_deg:
-      oss << "270 degrees";
-      break;
-  }
-  oss << OFendl;
-  oss << "Flip: ";
-  if (ps.getFlip()) oss << "yes" << OFendl; else oss << "no" << OFendl;
-
-  Sint32 tlhcX=0;
-  Sint32 tlhcY=0;
-  Sint32 brhcX=0;
-  Sint32 brhcY=0;
-  oss << "Displayed area:" << OFendl;
+  JSON_OUT1(Rotation);
+  JSON_OUT1(Flip);
 
   DVPSPresentationSizeMode sizemode = ps.getDisplayedAreaPresentationSizeMode();
   double factor=1.0;
+  std::string presentationSizeMode;
   switch (sizemode)
   {
     case DVPSD_scaleToFit:
-      oss << "  presentation size mode: SCALE TO FIT" << OFendl;
+      presentationSizeMode = "scaleToFit";
       break;
     case DVPSD_trueSize:
-      oss << "  presentation size mode: TRUE SIZE" << OFendl;
+      presentationSizeMode = "trueSize";
       break;
     case DVPSD_magnify:
-      ps.getDisplayedAreaPresentationPixelMagnificationRatio(factor);
-      oss << "  presentation size mode: MAGNIFY factor=" << factor << OFendl;
+      presentationSizeMode = "magnify";
+      // ps.getDisplayedAreaPresentationPixelMagnificationRatio(factor);
+      JSON_OUT2("DisplayedAreaPresentationPixelMagnificationRatio", factor);
       break;
   }
-  ps.getStandardDisplayedArea(tlhcX, tlhcY, brhcX, brhcY);
-  oss << "  displayed area TLHC=" << tlhcX << "\\" << tlhcY << " BRHC=" << brhcX << "\\" << brhcY << OFendl;
+  JSON_OUT2("PresentationSizeMode", presentationSizeMode.c_str());
 
-  double x, y;
-  if (EC_Normal == ps.getDisplayedAreaPresentationPixelSpacing(x,y))
+  std::vector<int> displayArea{0, 0, 0, 0};
+  ps.getStandardDisplayedArea(displayArea[0], displayArea[1], displayArea[2], displayArea[3]);
+  JSON_OUT2("StandardDisplayedArea", displayArea);
+
+  std::vector<double> pixelSpacing{0.0, 0.0};
+  if (EC_Normal == ps.getDisplayedAreaPresentationPixelSpacing(pixelSpacing[0], pixelSpacing[1]))
   {
-    oss << "  presentation pixel spacing: X=" << x << "mm Y=" << y << " mm" << OFendl;
+    JSON_OUT2("DisplayedAreaPresentationPixelSpacing", pixelSpacing);
   } else {
-    oss << "  presentation pixel aspect ratio: " << ps.getDisplayedAreaPresentationPixelAspectRatio() << OFendl;
+    JSON_OUT1(DisplayedAreaPresentationPixelAspectRatio);
   }
 
-  oss << "Rectangular shutter: ";
   if (ps.haveShutter(DVPSU_rectangular))
   {
-    oss << "LV=" << ps.getRectShutterLV()
-         << " RV=" << ps.getRectShutterRV()
-         << " UH=" << ps.getRectShutterUH()
-         << " LH=" << ps.getRectShutterLH() << OFendl;
+    JSON_OPEN_OBJ("RectangularShutter");
+    JSON_OUT1(RectShutterLV);
+    JSON_OUT1(RectShutterRV);
+    JSON_OUT1(RectShutterUH);
+    JSON_OUT1(RectShutterLH);
+    JSON_CLOSE();
+  }
 
-  } else oss << "none" << OFendl;
-  oss << "Circular shutter: ";
   if (ps.haveShutter(DVPSU_circular))
   {
-    oss << "center=" << ps.getCenterOfCircularShutter_x()
-         << "\\" << ps.getCenterOfCircularShutter_y()
-         << " radius=" << ps.getRadiusOfCircularShutter() << OFendl;
-  } else oss << "none" << OFendl;
-  oss << "Polygonal shutter: ";
+    JSON_OPEN_OBJ("CircularShutter");
+    JSON_OUT1(CenterOfCircularShutter_x);
+    JSON_OUT1(CenterOfCircularShutter_y);
+    JSON_OUT1(RadiusOfCircularShutter);
+    JSON_CLOSE();
+  }
+
   if (ps.haveShutter(DVPSU_polygonal))
   {
-     oss << "points=" << ps.getNumberOfPolyShutterVertices() << " coordinates=";
-     j = ps.getNumberOfPolyShutterVertices();
-     Sint32 polyX, polyY;
-     for (i=0; i<j; i++)
-     {
-        if (EC_Normal == ps.getPolyShutterVertex(i, polyX, polyY))
-        {
-          oss << polyX << "\\" << polyY << ", ";
-        } else oss << "???\\???,";
-     }
-     oss << OFendl;
-  } else oss << "none" << OFendl;
-  oss << "Bitmap shutter: ";
-  if (ps.haveShutter(DVPSU_bitmap))
-  {
-     oss << "present" << OFendl;
-  } else oss << "none" << OFendl;
-  oss << "Shutter presentation value: 0x" << STD_NAMESPACE hex << ps.getShutterPresentationValue() << STD_NAMESPACE dec << OFendl;
-  oss << OFendl;
+    JSON_OPEN_OBJ("PolygonalShutter");
+    JSON_OUT1(NumberOfPolyShutterVertices);
+    out << format.indent() << "\"coordinates\": [";
+    j = ps.getNumberOfPolyShutterVertices();
+    Sint32 polyX, polyY;
+    for (i=0; i<j; i++)
+    {
+      if (EC_Normal == ps.getPolyShutterVertex(i, polyX, polyY))
+      {
+        out << " [" << polyX << ", " << polyY << "],";
+      }
+    }
+    JSON_CLOSE();
+  }
+
+  // if (ps.haveShutter(DVPSU_bitmap))
+  // {
+  //   JSON_OPEN_OBJ("BitmapShutter");
+  // }
+  JSON_OUT1(ShutterPresentationValue);
 
   ps.sortGraphicLayers();  // to order of display
+  JSON_OPEN_ARRAY("GraphicsLayers"); // GraphicsLayers[]
   for (size_t layer=0; layer<ps.getNumberOfGraphicLayers(); layer++)
   {
+    JSON_OPEN(); // Layer{}
     c = ps.getGraphicLayerName(layer);
-    oss << "Graphic Layer #" << layer+1 << " ["; if (c) oss << c; else oss << "(unnamed)";
-    oss << "]" << OFendl;
+    JSON_OUT2("Name", c);
     c = ps.getGraphicLayerDescription(layer);
-    oss << "  Description: "; if (c) oss << c << OFendl; else oss << "none" << OFendl;
-    oss << "  Recomm. display value: ";
+    JSON_OUT2("Description", c);
     if (ps.haveGraphicLayerRecommendedDisplayValue(layer))
     {
       Uint16 r, g, b;
-      oss << "gray ";
       if (EC_Normal == ps.getGraphicLayerRecommendedDisplayValueGray(layer, g))
       {
-        oss << "0x" << STD_NAMESPACE hex << g << STD_NAMESPACE dec << OFendl;
-      } else oss << "error" << OFendl;
-      oss << "color ";
+        JSON_OUT2("RecommendedDisplayValueGray", g);
+        // std::stringstream value;
+        // value << "0x" << STD_NAMESPACE hex << g << STD_NAMESPACE dec;
+        // JSON_OUT2("RecommendedDisplayValueGray", value.str().c_str());
+      }
+
       if (EC_Normal == ps.getGraphicLayerRecommendedDisplayValueRGB(layer, r, g, b))
       {
-        oss << "0x" << STD_NAMESPACE hex << r << "\\0x" << g << "\\0x" << b << STD_NAMESPACE dec << OFendl;
-      } else oss << "error" << OFendl;
-    } else oss << "none" << OFendl;
+        // std::stringstream value;
+        // value << "0x" << STD_NAMESPACE hex << r << "\\0x" << g << "\\0x" << b << STD_NAMESPACE dec;
+        // JSON_OUT2("RecommendedDisplayValueRGB", value.str().c_str());
+        std::vector<Uint16> rgb{r, g, b};
+        JSON_OUT2("RecommendedDisplayValueRGB", rgb);
+      }
+    }
 
     // text objects
     max = ps.getNumberOfTextObjects(layer);
-    oss << "  Number of text objects: " << max << OFendl;
     DVPSTextObject *ptext = NULL;
+    JSON_OPEN_ARRAY("TextObjects"); // TextObjects[]
     for (size_t textidx=0; textidx<max; textidx++)
     {
       ptext = ps.getTextObject(layer, textidx);
       if (ptext)
       {
+        JSON_OPEN(); // TextObject{}
         // display contents of text object
-        oss << "      text " << textidx+1 << ": \"" << ptext->getText() << "\"" << OFendl;
-        oss << "        anchor point: ";
+        JSON_OUT2("Text", ptext->getText());
         if (ptext->haveAnchorPoint())
         {
-          oss << ptext->getAnchorPoint_x() << "\\" << ptext->getAnchorPoint_y() << " units=";
-          if (ptext->getAnchorPointAnnotationUnits()==DVPSA_display) oss << "display"; else oss << "pixel";
-          oss << " visible=";
-          if (ptext->anchorPointIsVisible()) oss << "yes"; else oss << "no";
-          oss << OFendl;
-        } else oss << "none" << OFendl;
-        oss << "        bounding box: ";
+          const std::vector<double> anchorPoint{ptext->getAnchorPoint_x(), ptext->getAnchorPoint_y()};
+          JSON_OUT2("AnchorPoint", anchorPoint);
+          JSON_OUT2("AnchorPointUnits", ptext->getAnchorPointAnnotationUnits()==DVPSA_display? "display" : "pixel");
+          JSON_OUT2("AnchorPointVisible", ptext->anchorPointIsVisible());
+        }
+
         if (ptext->haveBoundingBox())
         {
-          oss << "TLHC=";
-          oss << ptext->getBoundingBoxTLHC_x() << "\\" << ptext->getBoundingBoxTLHC_y()
-               << " BRHC=" << ptext->getBoundingBoxBRHC_x() << "\\" << ptext->getBoundingBoxBRHC_y()
-               << " units=";
-          if (ptext->getBoundingBoxAnnotationUnits()==DVPSA_display) oss << "display"; else oss << "pixel";
+          std::vector<double> box { ptext->getBoundingBoxTLHC_x(), ptext->getBoundingBoxTLHC_y(), ptext->getBoundingBoxBRHC_x(), ptext->getBoundingBoxBRHC_y() };
+          JSON_OUT2("BoundingBox", box);
+          JSON_OUT2("BoundingBoxUnits", ptext->getBoundingBoxAnnotationUnits()==DVPSA_display ? "display" : "pixel");
 
           DVPSTextJustification justification = ptext->getBoundingBoxHorizontalJustification();
-          oss << " justification=";
+          std::string horizontalJustification;
           switch (justification)
           {
             case DVPSX_left:
-              oss << "left";
+              horizontalJustification = "left";
               break;
             case DVPSX_right:
-              oss << "right";
+              horizontalJustification = "right";
               break;
             case DVPSX_center:
-              oss << "center";
+              horizontalJustification = "center";
               break;
           }
-          oss << OFendl;
-        } else oss << "none" << OFendl;
+          JSON_OUT2("BoundingBoxHorizontalJustification", horizontalJustification.c_str());
+        }
+        JSON_CLOSE(); // TextObject{}
       }
     }
+    JSON_CLOSE_ARRAY(); // TextObjects[]
 
     // graphic objects
     max = ps.getNumberOfGraphicObjects(layer);
-    oss << "  Number of graphic objects: " << max << OFendl;
     DVPSGraphicObject *pgraphic = NULL;
+    JSON_OPEN_ARRAY("GraphicObjects");
     for (size_t graphicidx=0; graphicidx<max; graphicidx++)
     {
       pgraphic = ps.getGraphicObject(layer, graphicidx);
       if (pgraphic)
       {
-        // display contents of graphic object
-        oss << "      graphic " << graphicidx+1 << ": points=" << pgraphic->getNumberOfPoints()
-             << " type=";
+        JSON_OPEN(); // Graphic{}
+        std::string graphicType = "none";
         switch (pgraphic->getGraphicType())
         {
-          case DVPST_polyline: oss << "polyline filled="; break;
-          case DVPST_interpolated: oss << "interpolated filled="; break;
-          case DVPST_circle: oss << "circle filled="; break;
-          case DVPST_ellipse: oss << "ellipse filled="; break;
-          case DVPST_point: oss << "point filled="; break;
+          case DVPST_polyline: graphicType = "polyline"; break;
+          case DVPST_interpolated: graphicType = "interpolated"; break;
+          case DVPST_circle: graphicType = "circle"; break;
+          case DVPST_ellipse: graphicType = "ellipse"; break;
+          case DVPST_point: graphicType = "point"; break;
         }
-        if (pgraphic->isFilled()) oss << "yes units="; else oss << "no units=";
-        if (pgraphic->getAnnotationUnits()==DVPSA_display) oss << "display"; else oss << "pixel";
-        oss << OFendl << "        coordinates: ";
+        JSON_OUT2("GraphicType", graphicType.c_str());
+        JSON_OUT2("IsFilled", pgraphic->isFilled());
+        JSON_OUT2("Units", pgraphic->getAnnotationUnits()==DVPSA_display? "display" : "pixel");
+
         j = pgraphic->getNumberOfPoints();
         Float32 fx=0.0, fy=0.0;
+        std::vector<float> points;
         for (i=0; i<j; i++)
         {
           if (EC_Normal==pgraphic->getPoint(i,fx,fy))
           {
-            oss << fx << "\\" << fy << ", ";
-          } else oss << "???\\???, ";
+            points.push_back(fx);
+            points.push_back(fy);
+          }
         }
-        oss << OFendl;
+        JSON_OUT2("Points", points);
+        JSON_CLOSE(); // Graphic{}
       }
     }
+    JSON_CLOSE_ARRAY(); // GraphicObjects[]
 
     // curve objects
     max = ps.getNumberOfCurves(layer);
-    oss << "  Number of activated curves: " << max << OFendl;
     DVPSCurve *pcurve = NULL;
+    JSON_OPEN_ARRAY("Curves");
     for (size_t curveidx=0; curveidx<max; curveidx++)
     {
       pcurve = ps.getCurve(layer, curveidx);
       if (pcurve)
       {
-        // display contents of curve
-        oss << "      curve " << curveidx+1 << ": points=" << pcurve->getNumberOfPoints()
-            << " type=";
+        JSON_OPEN(); // curve{}
+        std::string type;
         switch (pcurve->getTypeOfData())
         {
-          case DVPSL_roiCurve: oss << "roi units="; break;
-          case DVPSL_polylineCurve: oss << "poly units="; break;
+          case DVPSL_roiCurve: type = "roiCurve"; break;
+          case DVPSL_polylineCurve: type = "polylineCurve"; break;
         }
+        JSON_OUT2("Type", type.c_str());
+
         c = pcurve->getCurveAxisUnitsX();
-        if (c && (strlen(c)>0)) oss << c << "\\"; else oss << "(none)\\";
+        if (c && (strlen(c)>0)) JSON_OUT2("AxisUnitsX", c);
         c = pcurve->getCurveAxisUnitsY();
-        if (c && (strlen(c)>0)) oss << c << OFendl; else oss << "(none)" << OFendl;
-        oss << "        label=";
+        if (c && (strlen(c)>0)) JSON_OUT2("AxisUnitsY", c);
         c = pcurve->getCurveLabel();
-        if (c && (strlen(c)>0)) oss << c << " description="; else oss << "(none) description=";
+        if (c && (strlen(c)>0)) JSON_OUT2("Label", c);
         c = pcurve->getCurveDescription();
-        if (c && (strlen(c)>0)) oss << c << OFendl; else oss << "(none)" << OFendl;
-        oss << "        coordinates: ";
+        if (c && (strlen(c)>0)) JSON_OUT2("Description", c);
+
         j = pcurve->getNumberOfPoints();
         double dx=0.0, dy=0.0;
+        std::vector<double> points;
+        points.reserve(j*2);
         for (i=0; i<j; i++)
         {
           if (EC_Normal==pcurve->getPoint(i,dx,dy))
           {
-            oss << dx << "\\" << dy << ", ";
-          } else oss << "???\\???, ";
+            points.push_back(dx);
+            points.push_back(dy);
+          }
         }
-        oss << OFendl;
-      } else oss << "      curve " << curveidx+1 << " not present in image." << OFendl;
+        JSON_OUT2("Points", points);
+        JSON_CLOSE(); // curve{}
+      }
     }
+    JSON_CLOSE_ARRAY(); // Curves[]
 
     // overlay objects
     const void *overlayData=NULL;
@@ -359,85 +414,59 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
     FILE *ofile=NULL;
 
     max = ps.getNumberOfActiveOverlays(layer);
-    oss << "  Number of activated overlays: " << max << OFendl;
+
+    JSON_OPEN_ARRAY("Overlays");
     for (size_t ovlidx=0; ovlidx<max; ovlidx++)
     {
-      oss << "      overlay " << ovlidx+1 << ": group=0x" << STD_NAMESPACE hex
-           << ps.getActiveOverlayGroup(layer, ovlidx) << STD_NAMESPACE dec << " label=\"";
+      JSON_OPEN(); // overlay{}
+      JSON_OUT2("Index", ovlidx);
+
+      std::stringstream value;
+      value << "0x" << STD_NAMESPACE hex << ps.getActiveOverlayGroup(layer, ovlidx) << STD_NAMESPACE dec;
+      JSON_OUT2("Group", value.str().c_str());
+
       c=ps.getActiveOverlayLabel(layer, ovlidx);
-      if (c) oss << c; else oss << "(none)";
-      oss << "\" description=\"";
+      if (c) JSON_OUT2("Label", c);
+
       c=ps.getActiveOverlayDescription(layer, ovlidx);
-      if (c) oss << c; else oss << "(none)";
-      oss << "\" type=";
-      if (ps.activeOverlayIsROI(layer, ovlidx)) oss << "ROI"; else oss << "graphic";
-      oss << OFendl;
+      if (c) JSON_OUT2("Description", c);
+
+      std::string type;
+      if (ps.activeOverlayIsROI(layer, ovlidx)) type = "ROI"; else type = "graphic";
+      JSON_OUT2("Type", type.c_str());
 
       /* get overlay data */
       if (EC_Normal == ps.getOverlayData(layer, ovlidx, overlayData, overlayWidth, overlayHeight,
           overlayLeft, overlayTop, overlayROI, overlayTransp))
       {
-        oss << "        columns=" << overlayWidth << " rows=" << overlayHeight << " left="
-            << overlayLeft << " top=" << overlayTop << OFendl;
-        sprintf(overlayfile, "ovl_%02d%02d.pgm", (int)layer+1, (int)ovlidx+1);
-        oss << "        filename=\"" << overlayfile << "\"";
+        JSON_OUT2("Width", overlayWidth);
+        JSON_OUT2("Height", overlayHeight);
+        JSON_OUT2("Left", overlayLeft);
+        JSON_OUT2("Top", overlayTop);
+        std::stringstream buff;
+        buff << "P5\n" << overlayWidth << " " << overlayHeight << " " << "255\n";
+        buff.write((const char*)overlayData, overlayWidth * overlayHeight);
 
-        ofile = fopen(overlayfile, "wb");
-        if (ofile)
-        {
-          fprintf(ofile, "P5\n%d %d 255\n", overlayWidth, overlayHeight);
-          if (fwrite(overlayData, overlayWidth, overlayHeight, ofile) == overlayHeight)
-            oss << " - written." << OFendl;
-          else
-            oss << " -write error-" << OFendl;
-          fclose(ofile);
-        } else oss << " -write error-" << OFendl;
+        constexpr bool urlFriendly = false;
+        const std::string outputText = base64_encode(buff.str(), urlFriendly);
+        JSON_OUT2("OverlayData", outputText.c_str());
       } else {
         oss << "        unable to access overlay data!" << OFendl;
       }
+      JSON_CLOSE(); // overlay{}
     }
+    JSON_CLOSE_ARRAY(); // Overlays[]
+    JSON_CLOSE(); // Layer{}
   }
-
-  oss << OFendl;
-
-  max = ps.getNumberOfVOILUTsInImage();
-  oss << "VOI LUTs available in attached image: " << max << OFendl;
-  for (size_t lutidx=0; lutidx<max; lutidx++)
-  {
-    oss << "  LUT #" << lutidx+1 << ": description=";
-    c=ps.getDescriptionOfVOILUTsInImage(lutidx);
-    if (c) oss << c << OFendl; else oss << "(none)" << OFendl;
-  }
-
-  max = ps.getNumberOfVOIWindowsInImage();
-  oss << "VOI windows available in attached image: " << max << OFendl;
-  for (size_t winidx=0; winidx<max; winidx++)
-  {
-    oss << "  Window #" << winidx+1 << ": description=";
-    c=ps.getDescriptionOfVOIWindowsInImage(winidx);
-    if (c) oss << c << OFendl; else oss << "(none)" << OFendl;
-  }
-
-  max = ps.getNumberOfOverlaysInImage();
-  oss << "Overlays available (non-shadowed) in attached image: " << max << OFendl;
-  for (size_t oidx=0; oidx<max; oidx++)
-  {
-    oss << "  Overlay #" << oidx+1 << ": group=0x" << STD_NAMESPACE hex << ps.getOverlayInImageGroup(oidx) << STD_NAMESPACE dec << " label=\"";
-    c=ps.getOverlayInImageLabel(oidx);
-    if (c) oss << c; else oss << "(none)";
-    oss << "\" description=\"";
-    c=ps.getOverlayInImageDescription(oidx);
-    if (c) oss << c; else oss << "(none)";
-    oss << "\" type=";
-    if (ps.overlayInImageIsROI(oidx)) oss << "ROI"; else oss << "graphic";
-    oss << OFendl;
-  }
+  JSON_CLOSE_ARRAY(); // GraphicsLayers[]
 
   oss << OFStringStream_ends;
-  out << oss.str();
   OFSTRINGSTREAM_GETSTR(oss, res)
   OFLOG_INFO(dcmp2pgmLogger, res);
   OFSTRINGSTREAM_FREESTR(res)
+
+  // END JSON structure
+  JSON_CLOSE();
 }
 
 
