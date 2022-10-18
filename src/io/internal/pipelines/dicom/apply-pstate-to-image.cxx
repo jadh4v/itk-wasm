@@ -64,10 +64,14 @@
 #include "dcmtk/dcmdata/dcjson.h"     /* JSON format */
 
 #include "cpp-base64/base64.h"
-#include "nlohmann/json.hpp"
-using json = nlohmann::json;
+#include "rapidjson/document.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/prettywriter.h"
+using namespace rapidjson;
 
 #include <cstring>
+#include <array>
 
 #ifdef WITH_ZLIB
 #include "itk_zlib.h"     /* for zlibVersion() */
@@ -80,32 +84,49 @@ static OFLogger dcmp2pgmLogger = OFLog::getLogger("dcmtk.apps." OFFIS_CONSOLE_AP
 static char rcsid[] = "$dcmtk: " OFFIS_CONSOLE_APPLICATION " v"
   OFFIS_DCMTK_VERSION " " OFFIS_DCMTK_RELEASEDATE " $";
 
+template<typename Iteratorable>
+rapidjson::Value getArrayJson(Iteratorable container, rapidjson::Document::AllocatorType& allocator)
+{
+  rapidjson::Value value(kArrayType);
+  for(auto iter = container.begin(); iter != container.end(); ++iter)
+  {
+    value.PushBack(rapidjson::Value(*iter), allocator);
+  }
+  return value;
+}
+
 static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationState &ps)
 {
   size_t i, j, max;
 
   // START JSON structure
-  json jsn;
+  // Using short names such as 'd' and 'a' for Document and Allocator deliberately,
+  // to minimize verbosity of subsequent lines of code.
+  Document d(kObjectType);
+  Document::AllocatorType& a = d.GetAllocator();
 
-  jsn["PresentationLabel"] = ps.getPresentationLabel();
-  jsn["PresentationDescription"] = ps.getPresentationDescription();
-  jsn["PresentationCreatorsName"] = ps.getPresentationCreatorsName();
+  d.AddMember("PresentationLabel",
+    Value(StringRef(ps.getPresentationLabel())), a);
+  d.AddMember("PresentationDescription",
+    Value(StringRef(ps.getPresentationDescription())), a);
+  d.AddMember("PresentationCreatorsName",
+    Value(StringRef(ps.getPresentationCreatorsName())), a);
 
   if (ps.haveActiveVOIWindow())
   {
     double width=0.0, center=0.0;
     ps.getCurrentWindowWidth(width);
     ps.getCurrentWindowCenter(center);
-    jsn["CurrentWindowCenter"] = center;
-    jsn["CurrentWindowWidth"] = width;
-    jsn["CurrentVOIDescription"] = ps.getCurrentVOIDescription();
+    d.AddMember("CurrentWindowCenter", Value(center), a);
+    d.AddMember("CurrentWindowWidth", Value(width), a);
+    d.AddMember("CurrentVOIDescription", Value(StringRef(ps.getCurrentVOIDescription())), a);
   }
   else if (ps.haveActiveVOILUT())
   {
-    jsn["CurrentVOIDescription"] = ps.getCurrentVOIDescription();
+    d.AddMember("CurrentVOIDescription", Value(StringRef(ps.getCurrentVOIDescription())), a);
   }
 
-  jsn["Flip"] = ps.getFlip();
+  d.AddMember("Flip", Value(ps.getFlip()), a);
   int rotation = 0;
   switch (ps.getRotation())
   {
@@ -122,7 +143,7 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
       rotation = 270;
       break;
   }
-  jsn["Rotation"] = rotation;
+  d.AddMember("Rotation", Value(rotation), a);
 
   DVPSPresentationSizeMode sizemode = ps.getDisplayedAreaPresentationSizeMode();
   double factor=1.0;
@@ -140,38 +161,41 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
       ps.getDisplayedAreaPresentationPixelMagnificationRatio(factor);
       break;
   }
-  jsn["PresentationSizeMode"] = presentationSizeMode.c_str();
-  jsn["DisplayedAreaPresentationPixelMagnificationRatio"] = factor;
+  d.AddMember("PresentationSizeMode", Value(presentationSizeMode.c_str(), a), a);
+  d.AddMember("DisplayedAreaPresentationPixelMagnificationRatio", Value(factor), a);
 
-  std::vector<int> displayArea{0, 0, 0, 0};
+  std::array<int, 4> displayArea{0, 0, 0, 0};
   ps.getStandardDisplayedArea(displayArea[0], displayArea[1], displayArea[2], displayArea[3]);
-  jsn["StandardDisplayedArea"] = displayArea;
+  auto dav = getArrayJson(displayArea, a);
+  d.AddMember("StandardDisplayedArea", dav, a);
 
-  std::vector<double> pixelSpacing{0.0, 0.0};
+  std::array<double, 2> pixelSpacing{0.0, 0.0};
   if (EC_Normal == ps.getDisplayedAreaPresentationPixelSpacing(pixelSpacing[0], pixelSpacing[1]))
   {
-    jsn["DisplayedAreaPresentationPixelSpacing"] = pixelSpacing;
+    auto psv = getArrayJson(pixelSpacing, a);
+    d.AddMember("DisplayedAreaPresentationPixelSpacing", psv, a);
   } else {
-    jsn["DisplayedAreaPresentationPixelAspectRatio"] = ps.getDisplayedAreaPresentationPixelAspectRatio();
+    auto aspectRatio = ps.getDisplayedAreaPresentationPixelAspectRatio();
+    d.AddMember("DisplayedAreaPresentationPixelAspectRatio", Value(aspectRatio), a);
   }
 
   if (ps.haveShutter(DVPSU_rectangular))
   {
-    jsn["RectangularShutter"] = {
-      { "RectShutterLV", ps.getRectShutterLV() },
-      { "RectShutterRV", ps.getRectShutterRV() },
-      { "RectShutterUH", ps.getRectShutterUH() },
-      { "RectShutterLH", ps.getRectShutterLH() },
-    };
+    Value rectShutter(kObjectType);
+    rectShutter.AddMember("RectShutterLV", Value(ps.getRectShutterLV()), a);
+    rectShutter.AddMember("RectShutterRV", Value(ps.getRectShutterRV()), a);
+    rectShutter.AddMember("RectShutterUH", Value(ps.getRectShutterUH()), a);
+    rectShutter.AddMember("RectShutterLH", Value(ps.getRectShutterLH()), a);
+    d.AddMember("RectangularShutter", rectShutter, a);
   }
 
   if (ps.haveShutter(DVPSU_circular))
   {
-    jsn["CircularShutter"] = {
-      { "CenterOfCircularShutter_x", ps.getCenterOfCircularShutter_x() },
-      { "CenterOfCircularShutter_y", ps.getCenterOfCircularShutter_y() },
-      { "RadiusOfCircularShutter", ps.getRadiusOfCircularShutter() },
-    };
+    Value circularShutter(kObjectType);
+    circularShutter.AddMember("CenterOfCircularShutter_x", Value(ps.getCenterOfCircularShutter_x()), a);
+    circularShutter.AddMember("CenterOfCircularShutter_y", Value(ps.getCenterOfCircularShutter_y()), a);
+    circularShutter.AddMember("RadiusOfCircularShutter", Value(ps.getRadiusOfCircularShutter()), a);
+    d.AddMember("CircularShutter", circularShutter, a);
   }
 
   if (ps.haveShutter(DVPSU_polygonal))
@@ -188,10 +212,16 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
         vertices.push_back(polyY);
       }
     }
-    jsn["PolygonalShutter"] = {
-      { "NumberOfPolyShutterVertices", ps.getNumberOfPolyShutterVertices() },
-      { "Coordinates", vertices },
-    };
+    auto coordinates = getArrayJson(vertices, a);
+    Value polyShutter(kObjectType);
+
+    // rapidjson::Value doesn't have a default constructor for size_t (aka unsigned long).
+    // However, we can safely type-cast this value into a 32-bit unsigned integer (uint32_t)
+    // based on DICOM standards value representation "Integer String" (IS).
+    polyShutter.AddMember("NumberOfPolyShutterVertices", Value(static_cast<uint32_t>(ps.getNumberOfPolyShutterVertices())), a);
+
+    polyShutter.AddMember("Coordinates", coordinates, a);
+    d.AddMember("PolygonalShutter", polyShutter, a);
   }
 
   // TODO: add support for Bitmap shutter (bitmap masking).
@@ -199,26 +229,27 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
   // {
   //   JSON_OPEN_OBJ("BitmapShutter");
   // }
-  jsn["ShutterPresentationValue"] = ps.getShutterPresentationValue();
+  d.AddMember("ShutterPresentationValue", Value(ps.getShutterPresentationValue()), a);
 
   ps.sortGraphicLayers();  // to order of display
-  json graphicsLayersJsonArray = json::array();
+  Value graphicsLayersJsonArray(kArrayType);
   for (size_t layer=0; layer<ps.getNumberOfGraphicLayers(); layer++)
   {
-    json layerJson; // Layer{}
-    layerJson["Name"] = ps.getGraphicLayerName(layer);
-    layerJson["Description"] = ps.getGraphicLayerDescription(layer);
+    Value layerJson(kObjectType);
+    layerJson.AddMember("Name", Value(StringRef(ps.getGraphicLayerName(layer))), a);
+    layerJson.AddMember("Description", Value(StringRef(ps.getGraphicLayerDescription(layer))), a);
     if (ps.haveGraphicLayerRecommendedDisplayValue(layer))
     {
       Uint16 r, g, b;
       if (EC_Normal == ps.getGraphicLayerRecommendedDisplayValueGray(layer, g))
       {
-        layerJson["RecommendedDisplayValueGray"] = g;
+        layerJson.AddMember("RecommendedDisplayValueGray", Value(g), a);
       }
 
       if (EC_Normal == ps.getGraphicLayerRecommendedDisplayValueRGB(layer, r, g, b))
       {
-        layerJson["RecommendedDisplayValueRGB"] = {r, g, b};
+        const std::array<Uint16, 3> rgb{r, g, b};
+        layerJson.AddMember("RecommendedDisplayValueRGB", getArrayJson(rgb, a), a);
       }
     }
 
@@ -227,29 +258,31 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
     DVPSTextObject *ptext = NULL;
 
     // TextObjects[]
-    auto textObjectsJsonArray = json::array();
+    Value textObjectsJsonArray(kArrayType);
 
     for (size_t textidx=0; textidx<max; textidx++)
     {
       ptext = ps.getTextObject(layer, textidx);
       if (ptext)
       {
-        json textObjectJson;
+        Value textObjectJson(kObjectType);
         // display contents of text object
-        textObjectJson["Text"] = ptext->getText();
+        textObjectJson.AddMember("Text", Value(StringRef(ptext->getText())), a);
         if (ptext->haveAnchorPoint())
         {
-          const std::vector<double> anchorPoint{ptext->getAnchorPoint_x(), ptext->getAnchorPoint_y()};
-          textObjectJson["AnchorPoint"] = anchorPoint;
-          textObjectJson["AnchorPointUnits"] = (ptext->getAnchorPointAnnotationUnits()==DVPSA_display? "display" : "pixel");
-          textObjectJson["AnchorPointVisible"] = ptext->anchorPointIsVisible();
+          const std::array<double, 2> anchorPoint{ptext->getAnchorPoint_x(), ptext->getAnchorPoint_y()};
+          auto apv = getArrayJson(anchorPoint, a);
+          textObjectJson.AddMember("AnchorPoint", apv, a);
+          textObjectJson.AddMember("AnchorPointUnits", Value(StringRef((ptext->getAnchorPointAnnotationUnits()==DVPSA_display? "display" : "pixel"))), a);
+          textObjectJson.AddMember("AnchorPointVisible", Value(ptext->anchorPointIsVisible()), a);
         }
 
         if (ptext->haveBoundingBox())
         {
-          std::vector<double> box { ptext->getBoundingBoxTLHC_x(), ptext->getBoundingBoxTLHC_y(), ptext->getBoundingBoxBRHC_x(), ptext->getBoundingBoxBRHC_y() };
-          textObjectJson["BoundingBox"] = box;
-          textObjectJson["BoundingBoxUnits"] = (ptext->getBoundingBoxAnnotationUnits()==DVPSA_display ? "display" : "pixel");
+          const std::array<double, 4> box{ptext->getBoundingBoxTLHC_x(), ptext->getBoundingBoxTLHC_y(), ptext->getBoundingBoxBRHC_x(), ptext->getBoundingBoxBRHC_y()};
+          auto bv = getArrayJson(box, a);
+          textObjectJson.AddMember("BoundingBox", getArrayJson(box, a), a);
+          textObjectJson.AddMember("BoundingBoxUnits", Value(StringRef(ptext->getBoundingBoxAnnotationUnits()==DVPSA_display ? "display" : "pixel")), a);
 
           DVPSTextJustification justification = ptext->getBoundingBoxHorizontalJustification();
           std::string horizontalJustification;
@@ -265,27 +298,27 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
               horizontalJustification = "center";
               break;
           }
-          textObjectJson["BoundingBoxHorizontalJustification"] = horizontalJustification.c_str();
+          textObjectJson.AddMember("BoundingBoxHorizontalJustification", Value(horizontalJustification.c_str(), a), a);
         }
-        textObjectsJsonArray.push_back(textObjectJson);
+        textObjectsJsonArray.PushBack(textObjectJson, a);
       }
     }
 
-    layerJson["TextObjects"] = textObjectsJsonArray;
+    layerJson.AddMember("TextObjects", textObjectsJsonArray, a);
 
     // graphic objects
     max = ps.getNumberOfGraphicObjects(layer);
     DVPSGraphicObject *pgraphic = NULL;
 
     // GraphicObjects[]
-    auto graphicObjectsJsonArray = json::array();
+    Value graphicObjectsJsonArray(kArrayType);
 
     for (size_t graphicidx=0; graphicidx<max; graphicidx++)
     {
       pgraphic = ps.getGraphicObject(layer, graphicidx);
       if (pgraphic)
       {
-        json graphicJson;
+        Value graphicJson(kObjectType);
         std::string graphicType = "none";
         switch (pgraphic->getGraphicType())
         {
@@ -295,9 +328,9 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
           case DVPST_ellipse: graphicType = "ellipse"; break;
           case DVPST_point: graphicType = "point"; break;
         }
-        graphicJson["GraphicType"] = graphicType;
-        graphicJson["IsFilled"] = pgraphic->isFilled();
-        graphicJson["Units"] = (pgraphic->getAnnotationUnits()==DVPSA_display? "display" : "pixel");
+        graphicJson.AddMember("GraphicType", Value(graphicType.c_str(), a), a);
+        graphicJson.AddMember("IsFilled", Value(pgraphic->isFilled()), a);
+        graphicJson.AddMember("Units", Value(StringRef(pgraphic->getAnnotationUnits()==DVPSA_display? "display" : "pixel")), a);
 
         j = pgraphic->getNumberOfPoints();
         Float32 fx=0.0, fy=0.0;
@@ -310,37 +343,36 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
             points.push_back(fy);
           }
         }
-        graphicJson["Points"] = points;
-        graphicObjectsJsonArray.push_back(graphicJson);
+        graphicJson.AddMember("Points", getArrayJson(points, a), a);
+        graphicObjectsJsonArray.PushBack(graphicJson, a);
       }
     }
-    layerJson["GraphicObjects"] = graphicObjectsJsonArray; // GraphicObjects[]
+    layerJson.AddMember("GraphicObjects", graphicObjectsJsonArray, a); // GraphicObjects[]
 
     // curve objects
     max = ps.getNumberOfCurves(layer);
     DVPSCurve *pcurve = NULL;
 
     // Curves[]
-    auto curvesJsonArray = json::array();
+    Value curvesJsonArray(kArrayType);
 
     for (size_t curveidx=0; curveidx<max; curveidx++)
     {
       pcurve = ps.getCurve(layer, curveidx);
       if (pcurve)
       {
-        json curveJson; // curve{}
+        Value curveJson(kObjectType); // curve{}
         std::string type;
         switch (pcurve->getTypeOfData())
         {
           case DVPSL_roiCurve: type = "roiCurve"; break;
           case DVPSL_polylineCurve: type = "polylineCurve"; break;
         }
-        curveJson["Type"] = type;
-
-        curveJson["AxisUnitsX"] = pcurve->getCurveAxisUnitsX();
-        curveJson["AxisUnitsY"] = pcurve->getCurveAxisUnitsY();
-        curveJson["Label"] = pcurve->getCurveLabel();
-        curveJson["Description"] = pcurve->getCurveDescription();
+        curveJson.AddMember("Type", Value(type.c_str(), a), a);
+        curveJson.AddMember("AxisUnitsX", Value(pcurve->getCurveAxisUnitsX(), a), a);
+        curveJson.AddMember("AxisUnitsY", Value(pcurve->getCurveAxisUnitsY(), a), a);
+        curveJson.AddMember("Label", Value(StringRef(pcurve->getCurveLabel())), a);
+        curveJson.AddMember("Description", Value(StringRef(pcurve->getCurveDescription())), a);
 
         j = pcurve->getNumberOfPoints();
         double dx=0.0, dy=0.0;
@@ -354,12 +386,12 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
             points.push_back(dy);
           }
         }
-        curveJson["Points"] = points;
-        curvesJsonArray.push_back(curveJson);
+        curveJson.AddMember("Points", getArrayJson(points, a), a);
+        curvesJsonArray.PushBack(curveJson, a);
       }
     }
 
-    layerJson["Curves"] = curvesJsonArray;
+    layerJson.AddMember("Curves", curvesJsonArray, a);
 
     // overlay objects
     const void *overlayData=NULL;
@@ -372,46 +404,49 @@ static void dumpPresentationState(STD_NAMESPACE ostream &out, DVPresentationStat
     max = ps.getNumberOfActiveOverlays(layer);
 
     // Overlays[]
-    auto overlaysJsonArray = json::array();
+    Value overlaysJsonArray(kArrayType);
 
     for (size_t ovlidx=0; ovlidx<max; ovlidx++)
     {
-      json overlayJson;
-      overlayJson["Index"] = ovlidx;
+      Value overlayJson(kObjectType);
+      overlayJson.AddMember("Index", Value(static_cast<uint32_t>(ovlidx)), a);
       std::stringstream value;
       value << "0x" << STD_NAMESPACE hex << ps.getActiveOverlayGroup(layer, ovlidx) << STD_NAMESPACE dec;
-      overlayJson["Group"] = value.str();
-      overlayJson["Label"] = ps.getActiveOverlayLabel(layer, ovlidx);
-      overlayJson["Description"] = ps.getActiveOverlayDescription(layer, ovlidx);
-      overlayJson["Type"] = (ps.activeOverlayIsROI(layer, ovlidx)) ? "ROI" : "graphic";
+      overlayJson.AddMember("Group", Value(value.str().c_str(), a), a);
+      overlayJson.AddMember("Label", Value(StringRef(ps.getActiveOverlayLabel(layer, ovlidx))), a);
+      overlayJson.AddMember("Description", Value(StringRef(ps.getActiveOverlayDescription(layer, ovlidx))), a);
+      overlayJson.AddMember("Type", Value(StringRef(ps.activeOverlayIsROI(layer, ovlidx) ? "ROI" : "graphic")), a);
 
       /* get overlay data */
       if (EC_Normal == ps.getOverlayData(layer, ovlidx, overlayData, overlayWidth, overlayHeight,
           overlayLeft, overlayTop, overlayROI, overlayTransp))
       {
-        overlayJson["Width"] = overlayWidth;
-        overlayJson["Height"] = overlayHeight;
-        overlayJson["Left"] = overlayLeft;
-        overlayJson["Top"] = overlayTop;
+        overlayJson.AddMember("Width", Value(overlayWidth), a);
+        overlayJson.AddMember("Height", Value(overlayHeight), a);
+        overlayJson.AddMember("Left", Value(overlayLeft), a);
+        overlayJson.AddMember("Top", Value(overlayTop), a);
 
         std::stringstream buff;
         buff << "P5\n" << overlayWidth << " " << overlayHeight << " " << "255\n";
         buff.write((const char*)overlayData, overlayWidth * overlayHeight);
 
         constexpr bool urlFriendly = false;
-        overlayJson["OverlayData"] = base64_encode(buff.str(), urlFriendly);
+        overlayJson.AddMember("OverlayData", Value(base64_encode(buff.str(), urlFriendly).c_str(), a), a);
       } else {
         OFLOG_ERROR(dcmp2pgmLogger, "unable to access overlay data!");
       }
-      overlaysJsonArray.push_back(overlayJson);
+      overlaysJsonArray.PushBack(overlayJson, a);
     }
-    layerJson["Overlays"] = overlaysJsonArray; // Overlays[]
-    graphicsLayersJsonArray.push_back(layerJson);
+    layerJson.AddMember("Overlays", overlaysJsonArray, a); // Overlays[]
+    graphicsLayersJsonArray.PushBack(layerJson, a);
   }
-  jsn["GraphicsLayers"] = graphicsLayersJsonArray; // GraphicsLayers[]
+  d.AddMember("GraphicsLayers", graphicsLayersJsonArray.Move(), a); // GraphicsLayers[]
 
- // Pretty print the json into output stream.
-  out << jsn.dump(4);
+  // Pretty print the json into output stream.
+  StringBuffer buffer;
+  PrettyWriter<StringBuffer> writer(buffer);
+  d.Accept(writer);
+  out << buffer.GetString();
 }
 
 

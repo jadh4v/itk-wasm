@@ -130,6 +130,8 @@ test('Apply presentation state to dicom image.', async t => {
   const baselineJsonFileBuffer = fs.readFileSync(baselineJsonFilePath)
   // the slice operation removes the last EOF char from the baseline file.
   const baselineJsonString = baselineJsonFileBuffer.toString().slice(0, -1)
+  console.log(pstateOutStream)
+
   t.assert(baselineJsonString === pstateOutStream)
   t.assert(baselineJsonString.length === pstateOutStream.length)
 

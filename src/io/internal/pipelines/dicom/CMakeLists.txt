@@ -20,17 +20,6 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(cpp_nlohmann_json)
 
-#find_package(cpp-base64 REQUIRED)
-set(cpp_base64_GIT_REPOSITORY "https://github.com/thewtex/cpp-base64.git")
-set(cpp_base64_GET_TAG 9144cd53be930b37235ae552a92b5d2aa51e9325)
-FetchContent_Declare(
-  cpp_base64
-  GIT_REPOSITORY ${cpp_base64_GIT_REPOSITORY}
-  GIT_TAG        ${cpp_base64_GIT_TAG}
-)
-
-FetchContent_MakeAvailable(cpp_base64)
-
 set(wasm_modules )
 
 # diquant.cc required for odd linker error
