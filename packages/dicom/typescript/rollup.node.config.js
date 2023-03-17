@@ -11,7 +11,7 @@ export default {
       file: './dist/itk-dicom.node.js',
       format: 'es',
       sourcemap: true,
-      plugins: [terser(),],
+      // plugins: [terser(),],
     },
   ],
   plugins: [

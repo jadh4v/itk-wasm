@@ -12,7 +12,7 @@ export default {
       file: `./dist/bundles/${packageJson.name}-node.js`,
       format: 'es',
       sourcemap: true,
-      plugins: [terser(),],
+      // plugins: [terser(),],
     },
   ],
   plugins: [

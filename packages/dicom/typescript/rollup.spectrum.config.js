@@ -24,7 +24,7 @@ export default {
       file: './dist/demo/spectrum.umd.js',
       format: 'umd',
       sourcemap: true,
-      plugins: [terser(),],
+      // plugins: [terser(),],
     },
   ],
   inlineDynamicImports: true,

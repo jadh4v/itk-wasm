@@ -112,14 +112,18 @@ test('read Key Object Selection SR', async t => {
 test('Apply presentation state to dicom image.', async t => {
 
   // Read the input image file
-  const inputFile = 'gsps-pstate-test-input-image.dcm'
-  const inputFilePath = `../../../build-emscripten/ExternalData/test/Input/${inputFile}`
+  // const inputFile = 'gsps-pstate-test-input-image.dcm'
+  // const inputFilePath = `../../../build-emscripten/ExternalData/test/Input/${inputFile}`
+  const inputFile = '000012.dcm'
+  const inputFilePath = `../../../build-emscripten/ExternalData/test/Input/CSPS/${inputFile}`
   const dicomFileBuffer = fs.readFileSync(inputFilePath)
   const inputImage = new Uint8Array(dicomFileBuffer)
 
   // Read the presentation state file (that references the above image internally using its SOPInstanceUID).
-  const pstateFile = 'gsps-pstate-test-input-pstate.dcm'
-  const pstateFilePath = `../../../build-emscripten/ExternalData/test/Input/${pstateFile}`
+  // const pstateFile = 'gsps-pstate-test-input-pstate.dcm'
+  // const pstateFilePath = `../../../build-emscripten/ExternalData/test/Input/${pstateFile}`
+  const pstateFile = 'pstate.dcm'
+  const pstateFilePath = `../../../build-emscripten/ExternalData/test/Input/CSPS/${pstateFile}`
   const pstateFileBuffer = fs.readFileSync(pstateFilePath)
   const inputPState = new Uint8Array(pstateFileBuffer)
 
