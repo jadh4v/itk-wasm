@@ -77,6 +77,7 @@
 #include "itkOutputImage.h"
 #include "itkOutputTextStream.h"
 #include "itkPipeline.h"
+#include "itkImageAlgorithm.h"
 
 #include "dcmtk/config/osconfig.h"    /* make sure OS specific configuration is included first */
 
@@ -523,7 +524,7 @@ using ColorImageType = itk::Image<ColorPixelType, Dimension>;
 using OutputColorImageType = itk::wasm::OutputImage<ColorImageType>;
 
 template<typename OutputImageType, typename PixelType, unsigned int Dim>
-int GenerateOutputImage(OutputImageType& outputImage, const unsigned long width, const unsigned long height, const std::array<double, 2>& pixelSpacing, const void* pixelData)
+int GenerateOutputImage(typename OutputImageType::Pointer & outputImage, const unsigned long width, const unsigned long height, const std::array<double, 2>& pixelSpacing, const void* pixelData)
 {
   using ImportFilterType = itk::ImportImageFilter<PixelType, Dim>;
   auto importFilter = itk::ImportImageFilter<PixelType, Dim>::New();
@@ -548,13 +549,16 @@ int GenerateOutputImage(OutputImageType& outputImage, const unsigned long width,
   importFilter->SetImportPointer((PixelType*)pixelData, numberOfPixels, false);
   importFilter->Update();
 
+  typename OutputImageType::Pointer copy;
+  itk::ImageAlgorithm::Copy(importFilter->GetOutput(), copy.GetPointer(), region, region);
+
   // set as output image
-  outputImage = importFilter->GetOutput();
+  outputImage = copy;
   return EXIT_SUCCESS;
 }
 
-template int GenerateOutputImage<GrayImageType,  GrayPixelType,  2U>(OutputGrayImageType&,  const unsigned long, const unsigned long, const std::array<double, 2>&, const void*);
-template int GenerateOutputImage<ColorImageType, ColorPixelType, 2U>(OutputColorImageType&, const unsigned long, const unsigned long, const std::array<double, 2>&, const void*);
+template int GenerateOutputImage<GrayImageType,  GrayPixelType,  2U>(typename GrayImageType::Pointer &,  const unsigned long, const unsigned long, const std::array<double, 2>&, const void*);
+template int GenerateOutputImage<ColorImageType, ColorPixelType, 2U>(typename ColorImageType::Pointer &, const unsigned long, const unsigned long, const std::array<double, 2>&, const void*);
 
 int main(int argc, char *argv[])
 {
@@ -648,6 +652,9 @@ int main(int argc, char *argv[])
   }
   DVInterface dvi(opt_cfgName);
   OFCondition status = EC_Normal;
+  const void *pixelData = NULL;
+  GrayImageType::Pointer grayImage;
+  ColorImageType::Pointer colorImage;
 
   if (opt_pstName == NULL)
   {
@@ -661,11 +668,9 @@ int main(int argc, char *argv[])
 
   if (status == EC_Normal)
   {
-    // std::cout << "dvi getCurrentPState " << dvi.getCurrentPState() << std::endl;
     if (!noPstateOutput) dumpPresentationState(pstateOutStream.Get(), dvi.getCurrentPState());
     if (!noBitmapOutput)
     {
-      const void *pixelData = NULL;
       unsigned long width = 0;
       unsigned long height = 0;
       OFLOG_DEBUG(appLogger, "creating pixel data");
@@ -686,15 +691,16 @@ int main(int argc, char *argv[])
         {
           if (colorOutput)
           {
-            ColorImageType::Pointer colorImage;
             auto result =  GenerateOutputImage<ColorImageType, ColorPixelType, 2U>(colorImage, width, height, pixelSpacing, pixelData);
             outputColorImage.Set(colorImage);
             return result;
           }
           else
           {
-            GrayImageType::Pointer grayImage;
             auto result = GenerateOutputImage<GrayImageType, GrayPixelType, 2U>(grayImage, width, height, pixelSpacing, pixelData);
+            std::cout << grayImage->GetPixel({0,0}) << " " << grayImage->GetPixel({128,128}) << std::endl;
+            std::cout << "pixelData: " << pixelData << std::endl;
+            std::cout << "width, height" << width << " " << height << std::endl;
             outputGrayImage.Set(grayImage);
             return result;
           }
