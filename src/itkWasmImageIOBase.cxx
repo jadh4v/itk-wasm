@@ -56,6 +56,9 @@ WasmImageIOBase::SetImageIO(ImageIOBase * imageIO, bool readImage)
     wasmImageIO->SetDimensions(dim, imageIO->GetDimensions(dim));
   }
 
+  std::cout << "WasmImageIOBase ============== Shreeraj test output: ========== " << std::endl;
+  auto dictionary = imageIO->GetMetaDataDictionary();
+  wasmImageIO->SetMetaDataDictionary(dictionary);
   rapidjson::Document document = wasmImageIO->GetJSON();
   rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
 

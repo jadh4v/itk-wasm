@@ -37,8 +37,8 @@ RUN git clone https://github.com/facebook/zstd.git && \
   rm -rf zstd-build zstd
 
 # tag commit date: 2023-09-17 branch: itkwasm-2023-01-15-f42c10a20f-5
-ENV ITK_GIT_TAG fb5b2f0a691dbe107f44ea332a6113aab8810900
-RUN git clone https://github.com/KitwareMedical/ITK.git && \
+ENV ITK_GIT_TAG 59ac904404226cc61781eba89494708406a34215
+RUN git clone https://github.com/jadh4v/ITK.git && \
   cd ITK && \
   git checkout ${ITK_GIT_TAG} && \
   cd ../ && \
@@ -47,10 +47,10 @@ RUN git clone https://github.com/KitwareMedical/ITK.git && \
 
 # Modify CMake variable to use patched DCMTK library
 # GIT_TAG refers to DCMTK branch: 20230115_DCMTK_PATCHES_FOR_ITK-wasm
-RUN sed -i -e '/^set(DCMTK_GIT_REPOSITORY/c\set(DCMTK_GIT_REPOSITORY "https://github.com/InsightSoftwareConsortium/DCMTK.git")' \
+RUN sed -i -e '/^set(DCMTK_GIT_REPOSITORY/c\set(DCMTK_GIT_REPOSITORY "https://github.com/jadh4v/DCMTK.git")' \
     /ITK/Modules/ThirdParty/DCMTK/DCMTKGitTag.cmake
 
-RUN sed -i -e '/^set(DCMTK_GIT_TAG/c\set(DCMTK_GIT_TAG "d2c5251de48862ba37c4858266dbe47bda566f4e")' \
+RUN sed -i -e '/^set(DCMTK_GIT_TAG/c\set(DCMTK_GIT_TAG "cb04251afe4baad2458a8d48627954ca3818d666")' \
     /ITK/Modules/ThirdParty/DCMTK/DCMTKGitTag.cmake
 
 ARG CMAKE_BUILD_TYPE=Release

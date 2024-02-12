@@ -53,6 +53,27 @@ FetchContent_Declare(
   GIT_TAG ${RapidJSON_GIT_TAG}
   )
 
+# DCMQI
+set(DCMQI_GIT_REPOSITORY "https://github.com/jadh4v/dcmqi.git")
+set(DCMQI_GIT_TAG        "d42030c182aceae45462b337e944236973da42e5")
+set(DCMQI_BUILD_CXX17 ON)
+set(DCMQI_SUPERBUILD OFF)
+set(DCMQI_BUILD_SLICER_EXTENSION OFF)
+set(DCMQI_BUILD_APPS OFF)
+set(DCMQI_BUILD_DOC OFF)
+# set(DCMQI_ENABLE_INSTRUMENTATION_OPT OFF)
+set(DCMQI_ITK_DIR "${ITK_DIR}")
+set(DCMQI_DCMTK_DIR "${ITK_DIR}/Modules/ThirdParty/DCMTK/ITKDCMTK_ExtProject-build")
+# set(ITK_DIR "${ITK_DIR}")
+set(DCMTK_DIR "${ITK_DIR}/Modules/ThirdParty/DCMTK/ITKDCMTK_ExtProject-build")
+FetchContent_Declare(
+  dcmqi_lib
+  GIT_REPOSITORY ${DCMQI_GIT_REPOSITORY}
+  GIT_TAG ${DCMQI_GIT_TAG}
+  )
+
+
+
 set(CLI11_GIT_REPOSITORY "https://github.com/CLIUtils/CLI11")
 # v2.3.2
 set(CLI11_GIT_TAG "291c58789c031208f08f4f261a858b5b7083e8e2")
@@ -94,8 +115,9 @@ FetchContent_Declare(
 )
 
 list(APPEND CMAKE_MODULE_PATH ${libcbor_SOURCE_DIR}/CMakeModules)
-FetchContent_MakeAvailable(rapidjson_lib cli11 rang libcbor cpp_base64)
+FetchContent_MakeAvailable(rapidjson_lib dcmqi_lib cli11 rang libcbor cpp_base64)
 set(RapidJSON_INCLUDE_DIR "${rapidjson_lib_SOURCE_DIR}/include")
+set(DCMQI_INCLUDE_DIR "${dcmqi_lib_SOURCE_DIR}/include")
 set(cli11_INCLUDE_DIR "${cli11_SOURCE_DIR}/include")
 set(rang_INCLUDE_DIR "${rang_SOURCE_DIR}/include")
 set(libcbor_INCLUDE_DIR "${libcbor_SOURCE_DIR}/src")
@@ -111,6 +133,7 @@ find_path(RapidJSON_INCLUDE_DIR
  )
 set(WebAssemblyInterface_INCLUDE_DIRS
   ${RapidJSON_INCLUDE_DIR}
+  ${DCMQI_INCLUDE_DIR}
   ${cli11_INCLUDE_DIR}
   ${rang_INCLUDE_DIR}
   ${libcbor_INCLUDE_DIR}

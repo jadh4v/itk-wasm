@@ -102,6 +102,7 @@ int readImage(const std::string & inputFileName, itk::wasm::OutputTextStream & c
 
   imageIO->SetFileName(inputFileName);
   outputImageIO.Set(imageIO);
+  // std::cout << "readImage.cxx ============== Shreeraj test output: ========== " << std::endl;
 
   return EXIT_SUCCESS;
 }

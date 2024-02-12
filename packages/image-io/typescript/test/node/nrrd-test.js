@@ -6,10 +6,12 @@ import { FloatTypes, PixelTypes, getMatrixElement } from 'itk-wasm'
 
 import { testInputPath, testOutputPath } from './common.js'
 
-const testInputFilePath = path.join(testInputPath, 'vol-raw-little.nrrd')
+// const testInputFilePath = path.join(testInputPath, 'vol-raw-little.nrrd')
+const testInputFilePath = path.join(testInputPath, 'Segmentation.nrrd')
 const testOutputFilePath = path.join(testOutputPath, 'nrrd-test-vol-raw-little.nrrd')
 
 const verifyImage = (t, image) => {
+  console.log('image: ', image)
   t.is(image.imageType.dimension, 3, 'dimension')
   t.is(image.imageType.componentType, FloatTypes.Float64, 'componentType')
   t.is(image.imageType.pixelType, PixelTypes.Scalar, 'pixelType')

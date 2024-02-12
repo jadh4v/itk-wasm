@@ -43,7 +43,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "itk-wasm": "^1.0.0-b.154"
+    "itk-wasm": "../../../"
   },
   "devDependencies": {
     "@shoelace-style/shoelace": "^2.5.2",

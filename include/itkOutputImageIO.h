@@ -53,6 +53,8 @@ public:
   }
 
   void Set(ImageIOBase * imageIO) {
+    std::cout << "OutputImageIO SET ============== Shreeraj test output: ========== " << std::endl;
+    exit(0);
     this->m_ImageIO = imageIO;
   }
 
@@ -72,8 +74,10 @@ public:
 
   OutputImageIO() = default;
   ~OutputImageIO() {
+    exit(-3);
     if(wasm::Pipeline::get_use_memory_io())
     {
+    std::cout << "OutputImageIO get_use_memory_io ============== Shreeraj test output: ========== " << std::endl;
 #ifndef ITK_WASM_NO_MEMORY_IO
     if (!this->m_ImageIO.IsNull() && !this->m_Identifier.empty())
     {
@@ -103,6 +107,7 @@ public:
     }
     else
     {
+    std::cout << "OutputImageIO use_filesystem_io ============== Shreeraj test output: ========== " << std::endl;
 #ifndef ITK_WASM_NO_FILESYSTEM_IO
     if (!this->m_ImageIO.IsNull() && !this->m_Identifier.empty())
     {
