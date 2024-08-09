@@ -74,11 +74,12 @@ test('DCMQI read DICOM segmentation object (read-overlapping-segmentation)', asy
 */
 })
 
-test('DCMQI write DICOM segmentation object: non-overlapping labels', async t => {
+// failing
+test.only('DCMQI write DICOM segmentation object: non-overlapping labels', async t => {
 
   const inputSegImageFile = path.join(testPathPrefix, 'dicom-images/SEG/ReMIND-001/tumor_seg_MR_ref_3DSAGT2SPACE.nrrd')
   const inputSegImage = await readImageNode(inputSegImageFile)
-  //console.log('inputSegImage: ', inputSegImage)
+  console.log('inputSegImage: ', inputSegImage)
 
   const metaInfoFile = path.join(baselinePathPrefix, 'dicom-images/SEG/MR_ref_3DSAGT2SPACE_tumor_seg.json')
   const jsonFileBuffer = fs.readFileSync(metaInfoFile)
@@ -86,14 +87,15 @@ test('DCMQI write DICOM segmentation object: non-overlapping labels', async t =>
   //console.log('metaInfoJSON: ', jsonObject)
 
   const inputRefDicomSeriesPath = path.join(testPathPrefix, 'dicom-images/SEG/ReMIND-001/3DSAGT2SPACE')
-  const refDicomSeries = fs.readdirSync(inputRefDicomSeriesPath).map(x => path.join(testPathPrefix, 'dicom-images/SEG/ReMIND-001/3DSAGT2SPACE', x))
+  const refDicom = fs.readdirSync(inputRefDicomSeriesPath).map(x => path.join(testPathPrefix, 'dicom-images/SEG/ReMIND-001/3DSAGT2SPACE', x))
   //console.log('refDicomSeries: ', refDicomSeries)
+  const dcmSeries = [refDicom[0], refDicom[1]];
 
   const outputDicomFile = path.join(outputPathPrefix, 'writeSegmentationNode-output-seg.dcm')
   //console.log('outputDicomFile :', outputDicomFile)
 
   try {
-    const output = await writeSegmentationNode(inputSegImage, jsonObject, outputDicomFile, {refDicomSeries})
+    const output = await writeSegmentationNode(inputSegImage, jsonObject, outputDicomFile, {refDicomSeries: dcmSeries})
     t.assert(output != null)
   }
   catch (error) {

@@ -159,8 +159,10 @@ int main(int argc, char * argv[])
   pipeline.add_flag("-l,--use-labelid-as-segmentnumber", useLabelIDAsSegmentNumber, "Use label IDs from ITK images as" \
     "Segment Numbers in DICOM. Only works if label IDs are consecutively numbered starting from 1, otherwise conversion will fail.");
 
+  std::cerr << "SDJ: " << __LINE__ << std::endl;
   ITK_WASM_PARSE(pipeline);
 
+  std::cerr << "SDJ: " << __LINE__ << std::endl;
   return runPipeline(
     inputImage,
     metaInfo,
