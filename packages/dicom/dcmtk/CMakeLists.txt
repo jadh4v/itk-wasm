@@ -191,3 +191,28 @@ foreach(seg_size ${TEST_SEG_SIZES})
     )
 
 endforeach()
+
+add_executable(read-parametric-map read-parametric-map.cxx)
+target_link_libraries(read-parametric-map PUBLIC ${ITK_LIBRARIES} dcmqi)
+
+add_executable(write-parametric-map write-parametric-map.cxx)
+target_link_libraries(write-parametric-map PUBLIC ${ITK_LIBRARIES} dcmqi)
+
+#-----------------------------------------------------------------------------
+set(BASELINE ${CMAKE_SOURCE_DIR}/data/paramaps/)
+#include_directories(${ITK_INCLUDE_DIRS})
+set(MODULE_TEMP_DIR ${TEMP_DIR}/pmap)
+make_directory(${MODULE_TEMP_DIR})
+
+#-----------------------------------------------------------------------------
+set(cliname read-parametric-map)
+add_test(
+  NAME ${cliname}_help
+  COMMAND $<TARGET_FILE:${cliname}> --help
+  )
+
+set(cliname write-parametric-map)
+add_test(
+  NAME ${cliname}_help
+  COMMAND $<TARGET_FILE:${cliname}> --help
+  )

@@ -2,6 +2,8 @@ import fs from 'fs'
 import test from 'ava'
 import path from 'path'
 import {
+  readParametricMapNode,
+  writeParametricMapNode,
   readSegmentationNode,
   readOverlappingSegmentationNode,
   writeSegmentationNode,
@@ -351,4 +353,35 @@ test('itk2dcm_makeSEG_seg_size', async t => {
     t.assert(r1.metrics.almostEqual)
     t.assert(r1.metrics.maximumDifference < 1e-8)
   }
+})
+
+
+test.only('read-parametric-map-node', async t => {
+  const inputParamMapFile = path.join(testPathPrefix, '/dicom-images/PM/paramap.dcm')
+  const output = await readParametricMapNode(inputParamMapFile)
+  console.log(output)
+  t.assert(t)
+  await writeImageNode(output.paramImage, outputPathPrefix + 'output-paramap_image.nrrd');
+})
+
+test.only('read-parametric-map-float-node', async t => {
+  const inputParamMapFile = path.join(testPathPrefix, '/dicom-images/PM/paramap-float.dcm')
+  const output = await readParametricMapNode(inputParamMapFile)
+  console.log(output)
+  t.assert(t)
+  await writeImageNode(output.paramImage, outputPathPrefix + 'output-paramap-float_image.nrrd');
+})
+
+test.only('write-parametric-map-node', async t => {
+  const inputParamMapImage = path.join(testPathPrefix, '/dicom-images/PM/write/pm-example-float.nrrd')
+  const inputImage = await readImageNode(inputParamMapImage)
+  const metaInfo = JSON.parse(fs.readFileSync(path.join(testPathPrefix, '/dicom-images/PM/write/pm-example-float.json')))
+  const dcmSeries = [
+    path.join(testPathPrefix, '/dicom-images/PM/write/pm-example-slice.dcm'),
+  ]
+
+  const outputDicomFile = path.join(outputPathPrefix, 'output-writeParametricMap.dcm')
+  const output = await writeParametricMapNode(inputImage, metaInfo, outputDicomFile, {refDicomSeries: dcmSeries})
+  console.log(output)
+  t.assert(t)
 })

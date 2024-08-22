@@ -32,6 +32,13 @@ import readOverlappingSegmentationNode from './read-overlapping-segmentation-nod
 export { readOverlappingSegmentationNode }
 
 
+import ReadParametricMapNodeResult from './read-parametric-map-node-result.js'
+export type { ReadParametricMapNodeResult }
+
+import readParametricMapNode from './read-parametric-map-node.js'
+export { readParametricMapNode }
+
+
 import ReadSegmentationNodeResult from './read-segmentation-node-result.js'
 export type { ReadSegmentationNodeResult }
 
@@ -77,6 +84,16 @@ export type { WriteOverlappingSegmentationNodeOptions }
 
 import writeOverlappingSegmentationNode from './write-overlapping-segmentation-node.js'
 export { writeOverlappingSegmentationNode }
+
+
+import WriteParametricMapNodeResult from './write-parametric-map-node-result.js'
+export type { WriteParametricMapNodeResult }
+
+import WriteParametricMapNodeOptions from './write-parametric-map-node-options.js'
+export type { WriteParametricMapNodeOptions }
+
+import writeParametricMapNode from './write-parametric-map-node.js'
+export { writeParametricMapNode }
 
 
 import WriteSegmentationNodeResult from './write-segmentation-node-result.js'
